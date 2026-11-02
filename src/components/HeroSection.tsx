@@ -18,22 +18,39 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onContactClick }) => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Strictly disable auto-play and auto-looping
+    // Explicitly enforce iOS WebKit attributes to bypass Apple's strict video policies
+    video.muted = true;
+    video.defaultMuted = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
     video.autoplay = false;
     video.loop = false;
-    video.pause();
 
     const handleLoadedMetadata = () => {
-      video.pause();
       const initialTime = Math.min(video.duration * 0.38, video.duration - 0.1);
       video.currentTime = initialTime;
       targetTimeRef.current = initialTime;
       currentTimeRef.current = initialTime;
     };
 
+    // Prime iOS Safari decoder so frame renders immediately instead of showing a blank box
+    const handleCanPlay = () => {
+      video.play().then(() => {
+        video.pause();
+      }).catch(() => {
+        video.pause();
+      });
+    };
+
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('canplay', handleCanPlay, { once: true });
+
     if (video.readyState >= 1) {
       handleLoadedMetadata();
+      handleCanPlay();
+    } else {
+      video.load();
     }
 
     // High-performance, lag-free animation frame loop
@@ -90,6 +107,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onContactClick }) => {
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('canplay', handleCanPlay);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('touchmove', handlePointerMove);
       if (animFrameRef.current) {
@@ -168,13 +186,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onContactClick }) => {
           className="hero-portrait-inner relative overflow-hidden rounded-[24px] sm:rounded-[32px] md:rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.85)] border border-[#D7E2EA]/20 bg-[#121212] aspect-[9/14] flex items-center justify-center"
           id="magnetInner"
         >
-          {/* Local attached video asset - object-contain ensures character's face is NEVER cut off */}
+          {/* Local attached video asset - explicit playsInline and muted for iOS Safari compliance */}
           <video
             ref={videoRef}
             muted
             playsInline
+            autoPlay={false}
+            loop={false}
             preload="auto"
             className="w-full h-full object-contain select-none pointer-events-none"
+            {...({
+              'webkit-playsinline': 'true',
+              'x5-playsinline': 'true',
+            } as React.HTMLAttributes<HTMLVideoElement>)}
           >
             <source src="/assets/aistudio/avt_650fbc55.mp4" type="video/mp4" />
           </video>
